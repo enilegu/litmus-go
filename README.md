@@ -125,6 +125,4 @@ time="2024-04-24T13:12:06Z" level=error msg="Probe Failed, err: probes failed\n 
 
 I was running a cmd probe which was running command *ping <ip> -c 10*, and when IP was unreachable, it was terminating with exit code 1
 
-:::info
 Note: The default node metrics collection is done after every 10 sec which can be modified as per required
-:::
