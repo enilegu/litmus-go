@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"os"
+	"os/exec"
+	"time"
 
 	"github.com/litmuschaos/litmus-go/pkg/cerrors"
 	"github.com/palantir/stacktrace"
@@ -21,6 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/olekukonko/tablewriter"
 )
 
 // PrepareNodeCPUHog contains preparation steps before chaos injection
@@ -35,6 +39,14 @@ func PrepareNodeCPUHog(experimentsDetails *experimentTypes.ExperimentDetails, cl
 		"Node Affected Percentage": experimentsDetails.NodesAffectedPerc,
 		"Sequence":                 experimentsDetails.Sequence,
 	})
+
+	//go routine to print metrix for node-cpu-hog
+	go func() {
+		for {
+			metrixNodeCPUHog()
+			time.Sleep(10 * time.Second) // Adjust the interval as needed
+		}
+	}()
 
 	//Waiting for the ramp time before chaos injection
 	if experimentsDetails.RampTime != 0 {
@@ -285,4 +297,39 @@ func setChaosTunables(experimentsDetails *experimentTypes.ExperimentDetails) {
 	experimentsDetails.CPULoad = common.ValidateRange(experimentsDetails.CPULoad)
 	experimentsDetails.NodesAffectedPerc = common.ValidateRange(experimentsDetails.NodesAffectedPerc)
 	experimentsDetails.Sequence = common.GetRandomSequence(experimentsDetails.Sequence)
+}
+
+func metrixNodeCPUHog() {
+
+	cmd := exec.Command("kubectl", "top", "nodes", "--use-protocol-buffers")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Errorf("[Metrics]: Error Fetching Metrices using command kubectl top nodes --use-protocol-buffers ", err)
+		return
+	}
+
+	// Convert output to string
+	output := string(out)
+
+	// Split output into lines
+	lines := strings.Split(output, "\n")
+
+	// Parse lines to extract node metrics
+	data := [][]string{}
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" && !strings.Contains(line, "NAME") {
+			fields := strings.Fields(line)
+			data = append(data, fields)
+		}
+	}
+
+	// Print data in a table
+	log.Infof("[Metrics]: CPU/Memory Utilization by nodes: ")
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Node", "CPU(cores)", "CPU%", "Memory(bytes)", "Memory%"})
+	for _, v := range data {
+		table.Append(v)
+	}
+	table.Render()
+
 }

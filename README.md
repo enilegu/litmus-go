@@ -38,3 +38,93 @@ Here is a copy of the License: [`License`](LICENSE)
 
 ## License Status and Vulnerability Check
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Flitmuschaos%2Flitmus-go.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Flitmuschaos%2Flitmus-go?ref=badge_large)
+
+
+# Updates in node-cpu-hog branch
+
+### File chaoslib/litmus/node-cpu-hog/lib/node-cpu-hog.go
+Added Metric collection for all nodes using *kubectl top nodes*
+
+```	//go routine to print metrix for node-cpu-hog
+	go func() {
+		for {
+			metrixNodeCPUHog()
+			time.Sleep(10 * time.Second) // Adjust the interval as needed
+		}
+	}()
+
+    func metrixNodeCPUHog() {
+
+        cmd := exec.Command("kubectl", "top", "nodes", "--use-protocol-buffers")
+        out, err := cmd.CombinedOutput()
+        if err != nil {
+            log.Errorf("[Metrics]: Error Fetching Metrices using command kubectl top nodes --use-protocol-buffers ", err)
+            return
+        }
+
+        // Convert output to string
+        output := string(out)
+
+        // Split output into lines
+        lines := strings.Split(output, "\n")
+
+        // Parse lines to extract node metrics
+        data := [][]string{}
+        for _, line := range lines {
+            if strings.TrimSpace(line) != "" && !strings.Contains(line, "NAME") {
+                fields := strings.Fields(line)
+                data = append(data, fields)
+            }
+        }
+
+        // Print data in a table
+        log.Infof("[Metrics]: CPU/Memory Utilization by nodes: ")
+        table := tablewriter.NewWriter(os.Stdout)
+        table.SetHeader([]string{"Node", "CPU(cores)", "CPU%", "Memory(bytes)", "Memory%"})
+        for _, v := range data {
+            table.Append(v)
+        }
+        table.Render()
+
+    }
+```
+### File pkg/probe/probe.go
+
+```
+
+		//Print Probe Verdict in tabular form
+		log.Infof("[Probe]: Probe Details: ")
+		// Create a new table
+		table := tablewriter.NewWriter(os.Stdout)
+		// Set table headers
+		table.SetHeader([]string{"Time", "ProbeName", "ProbeType", "ProbeStatus"})
+		// Add log data to the table
+		table.Append([]string{time.Now().Format("2006-01-02T15:04:05Z07:00"), probe.Name, probe.Type, string(probeVerdict) + " " + emoji.Sprint(":smile:")})
+		// Render the table
+		table.Render()
+
+		//Print Probe Verdict in tabular form
+		log.Infof("[Probe]: Probe Details: ")
+		// Create a new table
+		table := tablewriter.NewWriter(os.Stdout)
+		// Set table headers
+		table.SetHeader([]string{"Time", "ProbeName", "ProbeType", "ProbeStatus"})
+		// Add log data to the table
+		table.Append([]string{time.Now().Format("2006-01-02T15:04:05Z07:00"), probe.Name, probe.Type, string(probeVerdict) + " " + emoji.Sprint(":cry:")})
+		// Render the table
+		table.Render()
+```
+
+## Bug reported
+1. While running CMD probe got below error:
+
+```time="2024-04-24T13:11:45Z" level=info msg="[Status]: The status of Pods are as follows" Pod=node-cpu-hog-1-1713954189-probe-kr8nqt Status=Running
+time="2024-04-24T13:12:06Z" level=info msg="name: Ping Probe SOT Chaos2, err: unable to get output of cmd command\n --- at /litmus-go/pkg/probe/cmdprobe.go:132                                                 (triggerSourceCmdProbe.func1) ---\nCaused by: {\"errorCode\":\"GENERIC_ERROR\",\"reason\":\"failed to create a stderr and stdout stream, command terminated with                                                 exit code 1\"}"
+time="2024-04-24T13:12:06Z" level=error msg="Probe Failed, err: probes failed\n --- at /litmus-go/pkg/probe/probe.go:339 (execute) ---\nCaused by: unable to get                                                 output of cmd command\n --- at /litmus-go/pkg/probe/cmdprobe.go:132 (triggerSourceCmdProbe.func1) ---\nCaused by: {\"errorCode\":\"GENERIC_ERROR\",\"reason\":\                                                "failed to create a stderr and stdout stream, command terminated with exit code 1\"}"
+```
+
+I was running a cmd probe which was running command *ping <ip> -c 10*, and when IP was unreachable, it was terminating with exit code 1
+
+:::info
+Note: The default node metrics collection is done after every 10 sec which can be modified as per required
+:::

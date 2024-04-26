@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"html/template"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/olekukonko/tablewriter"
 )
 
 var err error
@@ -187,6 +189,18 @@ func markedVerdictInEnd(err error, resultDetails *types.ResultDetails, probe v1a
 			"ProbeInstance": phase,
 			"ProbeStatus":   probeVerdict,
 		})
+
+		//Print Probe Verdict in tabular form
+		log.Infof("[Probe]: Probe Details: ")
+		// Create a new table
+		table := tablewriter.NewWriter(os.Stdout)
+		// Set table headers
+		table.SetHeader([]string{"Time", "ProbeName", "ProbeType", "ProbeStatus"})
+		// Add log data to the table
+		table.Append([]string{time.Now().Format("2006-01-02T15:04:05Z07:00"), probe.Name, probe.Type, string(probeVerdict) + " " + emoji.Sprint(":smile:")})
+		// Render the table
+		table.Render()
+
 		// counting the passed probes count to generate the score and mark the verdict as passed
 		// for edge, probe is marked as Passed if passed in both pre/post chaos checks
 		switch strings.ToLower(probe.Mode) {
@@ -198,6 +212,17 @@ func markedVerdictInEnd(err error, resultDetails *types.ResultDetails, probe v1a
 			resultDetails.PassedProbeCount++
 		}
 	default:
+		//Print Probe Verdict in tabular form
+		log.Infof("[Probe]: Probe Details: ")
+		// Create a new table
+		table := tablewriter.NewWriter(os.Stdout)
+		// Set table headers
+		table.SetHeader([]string{"Time", "ProbeName", "ProbeType", "ProbeStatus"})
+		// Add log data to the table
+		table.Append([]string{time.Now().Format("2006-01-02T15:04:05Z07:00"), probe.Name, probe.Type, string(probeVerdict) + " " + emoji.Sprint(":cry:")})
+		// Render the table
+		table.Render()
+
 		log.ErrorWithValues("[Probe]: "+probe.Name+" probe has been Failed "+emoji.Sprint(":cry:"), logrus.Fields{
 			"ProbeName":     probe.Name,
 			"ProbeType":     probe.Type,
